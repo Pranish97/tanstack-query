@@ -19,6 +19,10 @@ export const createTodoQueryOptions = () => {
   return queryOptions({
     queryKey: ["todos"],
     queryFn: getToDos,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 *30,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true
   });
 };
 
@@ -26,6 +30,9 @@ export const createPostQueryOptions = () => {
   return queryOptions({
     queryKey: ["posts"],
     queryFn: getPosts,
-    enabled: true
+    enabled: true,
+    // staleTime: 1000 * 60 * 5,
+    // refetchInterval: 10000,
+    // refetchOnWindowFocus: true
   });
 };

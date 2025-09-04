@@ -1,37 +1,76 @@
-import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import "./App.css";
-import { createPostQueryOptions, createTodoQueryOptions } from "./queryOptions/createQueryOptions";
-import type { POST, Todo } from "./types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Todo } from "./types";
 
+const getToDos = async () => {
+  const response = await axios.get(
+    "https://jsonplaceholder.typicode.com/todos?_limit=5"
+  );
+  return response.data;
+};
 
-
-
+const deleteTodo = async (id: number) => {
+  return await axios.delete(`https://jsonplaceholder.typicode.com/todos/${id}`);
+};
 
 function App() {
-  const { data: todos, error:todoErrors, isSuccess: todoSuccess } = useQuery(createTodoQueryOptions());
+  const queryClient = useQueryClient();
 
-  const { data: posts, error: postError, isSuccess:postSuccess } = useQuery(createPostQueryOptions());
+  const { data: todos, isLoading } = useQuery({
+    queryKey: ["todos"],
+    queryFn: getToDos,
+  });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteTodo,
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey: ["todos"] });
+
+      const previousTodos = queryClient.getQueryData(["todos"]);
+
+      queryClient.setQueryData(["todos"], (oldTodos: []) =>
+        oldTodos.filter((todo: Todo) => todo.id !== id)
+      );
+      return { previousTodos };
+    },
+
+    onError: (err, id, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData(["todos"], context.previousTodos);
+      }
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    },
+  });
+
+  if (isLoading) return <p>Loading...</p>;
   return (
-    <>
-      {todoSuccess && <h1>Data Fetched Successfully!</h1>}
+    <div>
+      <h2>Todos</h2>
       <ul>
-        {todoSuccess &&
-          todos.map((todo: Todo) => (
-            <li key={todo.id}>{todo.title}</li>
-          ))}
-        {todoErrors && <p>{todoErrors.message}</p>}
+        {todos?.map((todo: Todo) => (
+          <li key={todo.id}>
+            {todo.title}
+            <button onClick={() => deleteMutation.mutate(todo.id)}>
+              Delete
+            </button>
+          </li>
+        ))}
       </ul>
-
-      {postSuccess && <h1>Post Fetched Successfully!</h1>}
-      <ul>
-        {postSuccess &&
-          posts.map((post: POST) => (
-            <li key={post.id}>{post.title}</li>
-          ))}
-        {postError && <p>{postError.message}</p>}
-      </ul>
-    </>
+      {deleteMutation.isSuccess && (
+        <div style={{ marginTop: "1rem", color: "green" }}>
+          Todo Deleted Successfully!
+        </div>
+      )}
+      {deleteMutation.isError && (
+        <div style={{ marginTop: "1rem", color: "red" }}>
+          {deleteMutation.error.message}
+        </div>
+      )}
+    </div>
   );
 }
 
